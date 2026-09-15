@@ -2,14 +2,16 @@
   "name": "weblarek_frontend",
   "private": true,
   "version": "1.0.0",
-  "description": "< Добавьте описание проекта в свободной форме >",
-  "author": "< Укажите здесь автора работы >",
+  "description": "WebLarek frontend - sprint 17 security audit",
+  "author": "Sergey Lozin",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 --fix",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
     "format": "prettier ./src --write"
   },
   "dependencies": {
