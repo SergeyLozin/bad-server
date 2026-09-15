@@ -22,3 +22,11 @@ export const REFRESH_TOKEN = {
         } as CookieOptions,
     },
 }
+
+
+// Белый список origins для CORS
+export const ORIGIN_ALLOW =
+    process.env.ORIGIN_ALLOW?.split(',').map((s) => s.trim()) ?? [
+        'http://localhost',
+        'http://localhost:5173',
+    ]
