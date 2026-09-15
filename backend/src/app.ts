@@ -16,6 +16,9 @@ import routes from './routes'
 const { PORT = 3000 } = process.env
 const app = express()
 
+// FIX: доверяем nginx — он проксирует запросы, определяем реальный IP из X-Forwarded-For
+app.set('trust proxy', 1)
+
 // FIX: helmet — security-заголовки, убирает X-Powered-By
 app.use(helmet())
 
