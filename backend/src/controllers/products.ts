@@ -43,8 +43,9 @@ const createProduct = async (
         const { description, category, price, title, image } = req.body
 
         // Переносим картинку из временной папки
+        // FIX: await — movingFile теперь асинхронный
         if (image) {
-            movingFile(
+            await movingFile(
                 image.fileName,
                 join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
                 join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
@@ -83,8 +84,9 @@ const updateProduct = async (
         const { image } = req.body
 
         // Переносим картинку из временной папки
+        // FIX: await — movingFile теперь асинхронный
         if (image) {
-            movingFile(
+            await movingFile(
                 image.fileName,
                 join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
                 join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
