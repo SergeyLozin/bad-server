@@ -72,8 +72,7 @@ const createProduct = async (
     }
 }
 
-// TODO: Добавить guard admin
-// PUT /product
+// PATCH /product/:productId
 const updateProduct = async (
     req: Request,
     res: Response,
@@ -92,15 +91,25 @@ const updateProduct = async (
             )
         }
 
+        // FIX: whitelist полей — защита от Mass Assignment
+        const allowedFields = [
+            'title',
+            'description',
+            'category',
+            'price',
+            'image',
+        ] as const
+        const updates: Record<string, unknown> = {}
+        for (const field of allowedFields) {
+            if (field in req.body) updates[field] = req.body[field]
+        }
+        if (Object.keys(updates).length === 0) {
+            throw new BadRequestError('Нет допустимых полей для обновления')
+        }
+
         const product = await Product.findByIdAndUpdate(
             productId,
-            {
-                $set: {
-                    ...req.body,
-                    price: req.body.price ? req.body.price : null,
-                    image: req.body.image ? req.body.image : undefined,
-                },
-            },
+            { $set: updates },
             { runValidators: true, new: true }
         ).orFail(() => new NotFoundError('Нет товара по заданному id'))
         return res.send(product)
@@ -120,8 +129,7 @@ const updateProduct = async (
     }
 }
 
-// TODO: Добавить guard admin
-// DELETE /product
+// DELETE /product/:productId
 const deleteProduct = async (
     req: Request,
     res: Response,

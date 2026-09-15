@@ -4,10 +4,9 @@ import NotFoundError from '../errors/not-found-error'
 import Order from '../models/order'
 import User, { IUser } from '../models/user'
 import escapeRegExp from '../utils/escapeRegExp'
+import BadRequestError from '../errors/bad-request-error'
 
-// TODO: Добавить guard admin
-// eslint-disable-next-line max-len
-// Get GET /customers?page=2&limit=5&sort=totalAmount&order=desc&registrationDateFrom=2023-01-01&registrationDateTo=2023-12-31&lastOrderDateFrom=2023-01-01&lastOrderDateTo=2023-12-31&totalAmountFrom=100&totalAmountTo=1000&orderCountFrom=1&orderCountTo=10
+// Get GET /customers?page=2&limit=5&sort=totalAmount&order=desc&...
 export const getCustomers = async (
     req: Request,
     res: Response,
@@ -93,23 +92,23 @@ export const getCustomers = async (
         }
 
         // FIX: escape regex + ограничение длины — защита от ReDoS
-if (search && typeof search === 'string') {
-    const safe = escapeRegExp(search.slice(0, 100))
-    const searchRegex = new RegExp(safe, 'i')
-    const orders = await Order.find(
-        {
-            $or: [{ deliveryAddress: searchRegex }],
-        },
-        '_id'
-    )
+        if (search && typeof search === 'string') {
+            const safe = escapeRegExp(search.slice(0, 100))
+            const searchRegex = new RegExp(safe, 'i')
+            const orders = await Order.find(
+                {
+                    $or: [{ deliveryAddress: searchRegex }],
+                },
+                '_id'
+            )
 
-    const orderIds = orders.map((order) => order._id)
+            const orderIds = orders.map((order) => order._id)
 
-    filters.$or = [
-        { name: searchRegex },
-        { lastOrder: { $in: orderIds } },
-    ]
-}
+            filters.$or = [
+                { name: searchRegex },
+                { lastOrder: { $in: orderIds } },
+            ]
+        }
 
         const sort: { [key: string]: any } = {}
 
@@ -156,7 +155,6 @@ if (search && typeof search === 'string') {
     }
 }
 
-// TODO: Добавить guard admin
 // Get /customers/:id
 export const getCustomerById = async (
     req: Request,
@@ -174,7 +172,6 @@ export const getCustomerById = async (
     }
 }
 
-// TODO: Добавить guard admin
 // Patch /customers/:id
 export const updateCustomer = async (
     req: Request,
@@ -182,11 +179,23 @@ export const updateCustomer = async (
     next: NextFunction
 ) => {
     try {
+        // FIX: whitelist полей — защита от Mass Assignment
+        const allowedFields = ['name', 'email', 'phone'] as const
+        const updates: Record<string, unknown> = {}
+        for (const field of allowedFields) {
+            if (field in req.body) {
+                updates[field] = req.body[field]
+            }
+        }
+        if (Object.keys(updates).length === 0) {
+            throw new BadRequestError('Нет допустимых полей для обновления')
+        }
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            updates,
             {
                 new: true,
+                runValidators: true,
             }
         )
             .orFail(
@@ -202,7 +211,6 @@ export const updateCustomer = async (
     }
 }
 
-// TODO: Добавить guard admin
 // Delete /customers/:id
 export const deleteCustomer = async (
     req: Request,

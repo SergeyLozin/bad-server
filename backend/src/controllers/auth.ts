@@ -192,8 +192,20 @@ const updateCurrentUser = async (
 ) => {
     const userId = res.locals.user._id
     try {
-        const updatedUser = await User.findByIdAndUpdate(userId, req.body, {
+        // FIX: whitelist полей — защита от Mass Assignment
+        const allowedFields = ['name', 'email'] as const
+        const updates: Record<string, unknown> = {}
+        for (const field of allowedFields) {
+            if (typeof req.body[field] === 'string') {
+                updates[field] = req.body[field]
+            }
+        }
+        if (Object.keys(updates).length === 0) {
+            throw new BadRequestError('Нет допустимых полей для обновления')
+        }
+        const updatedUser = await User.findByIdAndUpdate(userId, updates, {
             new: true,
+            runValidators: true,
         }).orFail(
             () =>
                 new NotFoundError(
