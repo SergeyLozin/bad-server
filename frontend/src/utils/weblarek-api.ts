@@ -18,6 +18,11 @@ import {
 } from '@types'
 import { getCookie, setCookie } from './cookie'
 
+const CSRF_COOKIE = 'csrfToken'
+const CSRF_HEADER = 'x-csrf-token'
+const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
+
+
 export const enum RequestStatus {
     Idle = 'idle',
     Loading = 'loading',
@@ -53,17 +58,31 @@ class Api {
                   )
     }
 
-    protected async request<T>(endpoint: string, options: RequestInit) {
-        try {
-            const res = await fetch(`${this.baseUrl}${endpoint}`, {
-                ...this.options,
-                ...options,
-            })
-            return await this.handleResponse<T>(res)
-        } catch (error) {
-            return Promise.reject(error)
-        }
+    protected async request<T>(endpoint: string, options: RequestInit = {}) {
+    const method = (options.method ?? 'GET').toUpperCase()
+    const headers: Record<string, string> = {
+        ...((options.headers as Record<string, string>) ?? {}),
     }
+
+    // FIX: добавляем CSRF-заголовок на все мутирующие запросы
+    if (MUTATING_METHODS.includes(method)) {
+        const csrf = getCookie(CSRF_COOKIE)
+        if (csrf) headers[CSRF_HEADER] = csrf
+    }
+
+    try {
+        const res = await fetch(`${this.baseUrl}${endpoint}`, {
+            ...this.options,
+            ...options,
+            headers,
+            // FIX: credentials: include везде — refresh-кука должна ходить
+            credentials: 'include',
+        })
+        return await this.handleResponse<T>(res)
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
 
     private refreshToken = () => {
         return this.request<UserResponseToken>('/auth/token', {

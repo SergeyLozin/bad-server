@@ -10,6 +10,7 @@ import path from 'path'
 import { DB_ADDRESS, ORIGIN_ALLOW } from './config'
 import errorHandler from './middlewares/error-handler'
 import serveStatic from './middlewares/serverStatic'
+import { checkCsrfToken, setCsrfToken } from './middlewares/csrf'
 import routes from './routes'
 
 const { PORT = 3000 } = process.env
@@ -43,6 +44,10 @@ app.use(serveStatic(path.join(__dirname, 'public')))
 // FIX: лимиты тела запроса
 app.use(urlencoded({ extended: true, limit: '100kb' }))
 app.use(json({ limit: '100kb' }))
+
+// FIX: CSRF double-submit — защита от подделки запросов
+app.use(setCsrfToken)
+app.use(checkCsrfToken)
 
 app.use(routes)
 app.use(errors())
