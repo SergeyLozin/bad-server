@@ -181,12 +181,12 @@ export const updateCustomer = async (
     try {
         // FIX: whitelist полей — защита от Mass Assignment
         const allowedFields = ['name', 'email', 'phone'] as const
-        const updates: Record<string, unknown> = {}
-        for (const field of allowedFields) {
-            if (field in req.body) {
-                updates[field] = req.body[field]
-            }
-        }
+const updates: Record<string, unknown> = {}
+allowedFields.forEach((field) => {
+    if (field in req.body) {
+        updates[field] = req.body[field]
+    }
+})
         if (Object.keys(updates).length === 0) {
             throw new BadRequestError('Нет допустимых полей для обновления')
         }
