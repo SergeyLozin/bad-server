@@ -162,3 +162,5 @@ ab -k -c 2000 -n 50000 http://localhost/
 - MongoDB 8.0.4 (поднимается в контейнере)
 
 > ⚠️ Версия MongoDB зафиксирована на `8.0.4` — это связано с известной несовместимостью MongoDB 8.x с ядром Linux 6.19+ в Docker Desktop на macOS.
+
+> ⚠️ **Если `npm run build` падает с `MODULE_NOT_FOUND @rollup/rollup-linux-*-musl`** — это известный баг npm 10.x с optional dependencies на Alpine Linux (https://github.com/npm/cli/issues/4828). **Docker-сборка работает корректно** — используйте `docker compose build frontend`. Локальная проверка `npm run build` требует дополнительно `npm install @rollup/rollup-linux-arm64-musl@^4 --save-optional` на ARM Mac.
