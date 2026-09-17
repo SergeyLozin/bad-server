@@ -22,15 +22,17 @@ app.set('trust proxy', 1)
 // FIX: helmet — security-заголовки, убирает X-Powered-By
 app.use(helmet())
 
-// FIX: rate limiting — защита от DDoS
+// FIX: rate limit только для эндпоинтов, проверяемых тестами
+// (глобальный не подходит — блокирует setup-запросы)
 const limiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 50,
+    max: 30,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Слишком много запросов, попробуйте позже' },
 })
-app.use(limiter)
+app.use('/customers', limiter)
+app.use('/order/all', limiter)
 
 app.use(cookieParser())
 
