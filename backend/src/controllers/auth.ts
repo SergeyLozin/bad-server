@@ -84,23 +84,17 @@ const getCurrentUser = async (
     }
 }
 
-// GET /auth/csrf-token — возвращает CSRF-токен из куки
-// (эндпоинт для совместимости с автотестами)
+// GET /auth/csrf-token — возвращает CSRF-токен из res.locals
+// (middleware setCsrfToken уже сгенерировал токен и поставил куку)
 const getCsrfToken = (
-    req: Request,
+    _req: Request,
     res: Response,
     next: NextFunction
 ) => {
     try {
-        let csrfToken = req.cookies?.csrfToken
+        const csrfToken = res.locals.csrfToken
         if (!csrfToken) {
-            csrfToken = crypto.randomBytes(32).toString('hex')
-            res.cookie('csrfToken', csrfToken, {
-                httpOnly: false,
-                sameSite: 'strict',
-                secure: process.env.NODE_ENV === 'production',
-                path: '/',
-            })
+            throw new BadRequestError('CSRF-токен не установлен')
         }
         return res.status(200).json({ csrfToken })
     } catch (error) {
@@ -168,7 +162,7 @@ const refreshAccessToken = async (
 ) => {
     try {
         const userWithRefreshTkn = await deleteRefreshTokenInUser(req)
-        const accessToken = await userWithRefreshTkn.generateAccessToken()
+        const accessToken = userWithRefreshTkn.generateAccessToken()
         const refreshToken = await userWithRefreshTkn.generateRefreshToken()
         res.cookie(
             REFRESH_TOKEN.cookie.name,
