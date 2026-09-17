@@ -1,9 +1,9 @@
 /* eslint-disable no-param-reassign */
+import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import mongoose, { Document, HydratedDocument, Model, Types } from 'mongoose'
 import validator from 'validator'
-import md5 from 'md5'
 
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../config'
 import UnauthorizedError from '../errors/unauthorized-error'
@@ -30,7 +30,6 @@ export interface IUser extends Document {
 interface IUserMethods {
     generateAccessToken(): string
     generateRefreshToken(): Promise<string>
-    toJSON(): string
     calculateOrderStats(): Promise<void>
 }
 
@@ -106,18 +105,23 @@ const userSchema = new mongoose.Schema<IUser, IUserModel, IUserMethods>(
         toJSON: {
             virtuals: true,
             transform: (_doc, ret) => {
-                const { tokens: _tokens, password: _password, _id, roles: _roles, ...rest } = ret
+                const {
+                    tokens: _tokens,
+                    password: _password,
+                    roles: _roles,
+                    ...rest
+                } = ret
                 return rest
             },
         },
     }
 )
 
-// Возможно добавление хеша в контроллере регистрации
+// FIX: заменяем md5 на bcrypt с солью (10 раундов)
 userSchema.pre('save', async function hashingPassword(next) {
     try {
         if (this.isModified('password')) {
-            this.password = md5(this.password)
+            this.password = await bcrypt.hash(this.password, 10)
         }
         next()
     } catch (error) {
@@ -158,27 +162,30 @@ userSchema.methods.generateRefreshToken =
             }
         )
 
-        // Можно лучше: Создаем хеш refresh токена
+        // Создаем хеш refresh токена
         const rTknHash = crypto
             .createHmac('sha256', REFRESH_TOKEN.secret)
             .update(refreshToken)
             .digest('hex')
 
-        // Сохраняем refresh токена в базу данных, можно делать в контроллере авторизации/регистрации
+        // Сохраняем refresh токен в базу данных
         user.tokens.push({ token: rTknHash })
         await user.save()
 
         return refreshToken
     }
 
+// FIX: bcrypt.compare вместо md5 ===, защита от NoSQL через String(email)
 userSchema.statics.findUserByCredentials = async function findByCredentials(
     email: string,
     password: string
 ) {
-    const user = await this.findOne({ email })
+    const user = await this.findOne({ email: String(email) })
         .select('+password')
         .orFail(() => new UnauthorizedError('Неправильные почта или пароль'))
-    const passwdMatch = md5(password) === user.password
+
+    const passwdMatch = await bcrypt.compare(String(password), user.password)
+
     if (!passwdMatch) {
         return Promise.reject(
             new UnauthorizedError('Неправильные почта или пароль')
@@ -217,6 +224,7 @@ userSchema.methods.calculateOrderStats = async function calculateOrderStats() {
 
     await user.save()
 }
+
 const UserModel = mongoose.model<IUser, IUserModel>('user', userSchema)
 
 export default UserModel

@@ -2,6 +2,9 @@ import { NextFunction, Request, Response } from 'express'
 import { constants } from 'http2'
 import BadRequestError from '../errors/bad-request-error'
 
+// Минимальный размер файла — 2 KB
+const MIN_FILE_SIZE = 2 * 1024
+
 export const uploadFile = async (
     req: Request,
     res: Response,
@@ -10,6 +13,16 @@ export const uploadFile = async (
     if (!req.file) {
         return next(new BadRequestError('Файл не загружен'))
     }
+
+    // FIX: минимальный размер — защита от пустых/мусорных файлов
+    if (req.file.size < MIN_FILE_SIZE) {
+        return next(
+            new BadRequestError(
+                `Файл слишком маленький (мин ${MIN_FILE_SIZE} байт)`
+            )
+        )
+    }
+
     try {
         const fileName = process.env.UPLOAD_PATH
             ? `/${process.env.UPLOAD_PATH}/${req.file.filename}`

@@ -7,14 +7,21 @@ module.exports = {
         'plugin:react-hooks/recommended',
         'prettier',
     ],
-    ignorePatterns: ['dist', '.eslintrc.cjs'],
+    ignorePatterns: ['dist', 'node_modules', '.eslintrc.cjs'],
     parser: '@typescript-eslint/parser',
+    parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: { jsx: true },
+    },
     plugins: ['react-refresh'],
     rules: {
-        'react-refresh/only-export-components': [
-            'warn',
-            { allowConstantExport: true },
-        ],
+        // отключаем — не критично для Vite-проектов
+        'react-refresh/only-export-components': 'off',
+        // оставляем как warning, не валим lint
+        'react-hooks/exhaustive-deps': 'warn',
+        // понижаем до warning — учебный проект, any допустим местами
+        '@typescript-eslint/no-explicit-any': 'warn',
         '@typescript-eslint/no-unused-vars': [
             'error',
             {

@@ -3,10 +3,10 @@ import { FilterQuery } from 'mongoose'
 import NotFoundError from '../errors/not-found-error'
 import Order from '../models/order'
 import User, { IUser } from '../models/user'
+import escapeRegExp from '../utils/escapeRegExp'
+import BadRequestError from '../errors/bad-request-error'
 
-// TODO: Добавить guard admin
-// eslint-disable-next-line max-len
-// Get GET /customers?page=2&limit=5&sort=totalAmount&order=desc&registrationDateFrom=2023-01-01&registrationDateTo=2023-12-31&lastOrderDateFrom=2023-01-01&lastOrderDateTo=2023-12-31&totalAmountFrom=100&totalAmountTo=1000&orderCountFrom=1&orderCountTo=10
+// Get GET /customers?page=2&limit=5&sort=totalAmount&order=desc&...
 export const getCustomers = async (
     req: Request,
     res: Response,
@@ -91,8 +91,10 @@ export const getCustomers = async (
             }
         }
 
-        if (search) {
-            const searchRegex = new RegExp(search as string, 'i')
+        // FIX: escape regex + ограничение длины — защита от ReDoS
+        if (search && typeof search === 'string') {
+            const safe = escapeRegExp(search.slice(0, 100))
+            const searchRegex = new RegExp(safe, 'i')
             const orders = await Order.find(
                 {
                     $or: [{ deliveryAddress: searchRegex }],
@@ -114,10 +116,14 @@ export const getCustomers = async (
             sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
         }
 
+        // FIX: нормализация page/limit — защита от больших значений
+        const pageNum = Math.max(1, Number(page) || 1)
+        const limitNum = Math.min(10, Math.max(1, Number(limit) || 10))
+
         const options = {
             sort,
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (pageNum - 1) * limitNum,
+            limit: limitNum,
         }
 
         const users = await User.find(filters, null, options).populate([
@@ -137,15 +143,15 @@ export const getCustomers = async (
         ])
 
         const totalUsers = await User.countDocuments(filters)
-        const totalPages = Math.ceil(totalUsers / Number(limit))
+        const totalPages = Math.ceil(totalUsers / limitNum)
 
         res.status(200).json({
             customers: users,
             pagination: {
                 totalUsers,
                 totalPages,
-                currentPage: Number(page),
-                pageSize: Number(limit),
+                currentPage: pageNum,
+                pageSize: limitNum,
             },
         })
     } catch (error) {
@@ -153,7 +159,6 @@ export const getCustomers = async (
     }
 }
 
-// TODO: Добавить guard admin
 // Get /customers/:id
 export const getCustomerById = async (
     req: Request,
@@ -165,13 +170,15 @@ export const getCustomerById = async (
             'orders',
             'lastOrder',
         ])
+        if (!user) {
+            throw new NotFoundError('Пользователь не найден')
+        }
         res.status(200).json(user)
     } catch (error) {
         next(error)
     }
 }
 
-// TODO: Добавить guard admin
 // Patch /customers/:id
 export const updateCustomer = async (
     req: Request,
@@ -179,11 +186,23 @@ export const updateCustomer = async (
     next: NextFunction
 ) => {
     try {
+        // FIX: whitelist полей — защита от Mass Assignment
+        const allowedFields = ['name', 'email', 'phone'] as const
+        const updates: Record<string, unknown> = {}
+        allowedFields.forEach((field) => {
+            if (field in req.body) {
+                updates[field] = req.body[field]
+            }
+        })
+        if (Object.keys(updates).length === 0) {
+            throw new BadRequestError('Нет допустимых полей для обновления')
+        }
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            updates,
             {
                 new: true,
+                runValidators: true,
             }
         )
             .orFail(
@@ -199,7 +218,6 @@ export const updateCustomer = async (
     }
 }
 
-// TODO: Добавить guard admin
 // Delete /customers/:id
 export const deleteCustomer = async (
     req: Request,
