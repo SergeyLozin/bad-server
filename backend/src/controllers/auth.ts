@@ -84,12 +84,32 @@ const getCurrentUser = async (
     }
 }
 
-// Можно лучше: вынести общую логику получения данных из refresh токена
-const deleteRefreshTokenInUser = async (
+// GET /auth/csrf-token — возвращает CSRF-токен из куки
+// (эндпоинт для совместимости с автотестами)
+const getCsrfToken = (
     req: Request,
-    _res: Response,
-    _next: NextFunction
+    res: Response,
+    next: NextFunction
 ) => {
+    try {
+        let csrfToken = req.cookies?.csrfToken
+        if (!csrfToken) {
+            csrfToken = crypto.randomBytes(32).toString('hex')
+            res.cookie('csrfToken', csrfToken, {
+                httpOnly: false,
+                sameSite: 'strict',
+                secure: process.env.NODE_ENV === 'production',
+                path: '/',
+            })
+        }
+        return res.status(200).json({ csrfToken })
+    } catch (error) {
+        return next(error)
+    }
+}
+
+// Можно лучше: вынести общую логику получения данных из refresh токена
+const deleteRefreshTokenInUser = async (req: Request) => {
     const { cookies } = req
     const rfTkn = cookies[REFRESH_TOKEN.cookie.name]
 
@@ -97,10 +117,16 @@ const deleteRefreshTokenInUser = async (
         throw new UnauthorizedError('Не валидный токен')
     }
 
-    const decodedRefreshTkn = jwt.verify(
-        rfTkn,
-        REFRESH_TOKEN.secret
-    ) as JwtPayload
+    let decodedRefreshTkn: JwtPayload
+    try {
+        decodedRefreshTkn = jwt.verify(
+            rfTkn,
+            REFRESH_TOKEN.secret
+        ) as JwtPayload
+    } catch {
+        throw new UnauthorizedError('Не валидный токен')
+    }
+
     const user = await User.findOne({
         _id: decodedRefreshTkn._id,
     }).orFail(() => new UnauthorizedError('Пользователь не найден в базе'))
@@ -117,11 +143,10 @@ const deleteRefreshTokenInUser = async (
     return user
 }
 
-// Реализация удаления токена из базы может отличаться
-// GET  /auth/logout
+// POST /auth/logout
 const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await deleteRefreshTokenInUser(req, res, next)
+        await deleteRefreshTokenInUser(req)
         const expireCookieOptions = {
             ...REFRESH_TOKEN.cookie.options,
             maxAge: -1,
@@ -135,18 +160,14 @@ const logout = async (req: Request, res: Response, next: NextFunction) => {
     }
 }
 
-// GET  /auth/token
+// POST /auth/token
 const refreshAccessToken = async (
     req: Request,
     res: Response,
     next: NextFunction
 ) => {
     try {
-        const userWithRefreshTkn = await deleteRefreshTokenInUser(
-            req,
-            res,
-            next
-        )
+        const userWithRefreshTkn = await deleteRefreshTokenInUser(req)
         const accessToken = await userWithRefreshTkn.generateAccessToken()
         const refreshToken = await userWithRefreshTkn.generateRefreshToken()
         res.cookie(
@@ -165,20 +186,11 @@ const refreshAccessToken = async (
 }
 
 const getCurrentUserRoles = async (
-    req: Request,
+    _req: Request,
     res: Response,
     next: NextFunction
 ) => {
-    const userId = res.locals.user._id
     try {
-        await User.findById(userId, req.body, {
-            new: true,
-        }).orFail(
-            () =>
-                new NotFoundError(
-                    'Пользователь по заданному id отсутствует в базе'
-                )
-        )
         res.status(200).json(res.locals.user.roles)
     } catch (error) {
         next(error)
@@ -194,12 +206,12 @@ const updateCurrentUser = async (
     try {
         // FIX: whitelist полей — защита от Mass Assignment
         const allowedFields = ['name', 'email'] as const
-const updates: Record<string, unknown> = {}
-allowedFields.forEach((field) => {
-    if (typeof req.body[field] === 'string') {
-        updates[field] = req.body[field]
-    }
-})
+        const updates: Record<string, unknown> = {}
+        allowedFields.forEach((field) => {
+            if (typeof req.body[field] === 'string') {
+                updates[field] = req.body[field]
+            }
+        })
         if (Object.keys(updates).length === 0) {
             throw new BadRequestError('Нет допустимых полей для обновления')
         }
@@ -219,6 +231,7 @@ allowedFields.forEach((field) => {
 }
 
 export {
+    getCsrfToken,
     getCurrentUser,
     getCurrentUserRoles,
     login,

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+    getCsrfToken,
     getCurrentUser,
     getCurrentUserRoles,
     login,
@@ -16,17 +17,29 @@ import {
 
 const authRouter = Router()
 
-// FIX: валидация celebrate на login и register — защита от NoSQL-инъекции
-authRouter.post('/login', validateAuthentication, login)
+// POST /auth/register — регистрация
 authRouter.post('/register', validateUserBody, register)
 
-// FIX: logout и token — POST, а не GET (мутирующие операции)
+// POST /auth/login — логин
+authRouter.post('/login', validateAuthentication, login)
+
+// POST /auth/logout — выход (мутирующая операция, не GET)
 authRouter.post('/logout', logout)
+
+// POST /auth/token — обновление accessToken (мутирующая операция, не GET)
 authRouter.post('/token', refreshAccessToken)
 
-// Защищённые маршруты
+// GET /auth/csrf-token — возвращает CSRF-токен из куки
+// (эндпоинт для совместимости с автотестами)
+authRouter.get('/csrf-token', getCsrfToken)
+
+// GET /auth/user — текущий пользователь
 authRouter.get('/user', auth, getCurrentUser)
+
+// PATCH /auth/me — обновление текущего пользователя
 authRouter.patch('/me', auth, updateCurrentUser)
+
+// GET /auth/user/roles — роли текущего пользователя
 authRouter.get('/user/roles', auth, getCurrentUserRoles)
 
 export default authRouter
