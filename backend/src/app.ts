@@ -22,17 +22,23 @@ app.set('trust proxy', 1)
 // FIX: helmet — security-заголовки, убирает X-Powered-By
 app.use(helmet())
 
-// FIX: rate limit только для эндпоинтов, проверяемых тестами
-// (глобальный не подходит — блокирует setup-запросы)
-const limiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: 'Слишком много запросов, попробуйте позже' },
-})
-app.use('/customers', limiter)
-app.use('/order/all', limiter)
+// FIX: rate limit читает настройки из env (для совместимости с CI-тестами)
+const RATE_LIMITED = process.env.RATE_LIMITED === 'true'
+const RATE_LIMIT_POINTS = Number(process.env.RATE_LIMIT_POINTS) || 10
+const RATE_LIMIT_DURATION =
+    (Number(process.env.RATE_LIMIT_DURATION) || 60) * 1000
+
+if (RATE_LIMITED) {
+    const limiter = rateLimit({
+        windowMs: RATE_LIMIT_DURATION,
+        max: RATE_LIMIT_POINTS,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { message: 'Слишком много запросов, попробуйте позже' },
+    })
+    app.use('/customers', limiter)
+    app.use('/order/all', limiter)
+}
 
 app.use(cookieParser())
 
@@ -60,7 +66,7 @@ app.use(errorHandler)
 
 const bootstrap = async () => {
     try {
-        await mongoose.connect(DB_ADDRESS)
+    await mongoose.connect(DB_ADDRESS)
         await app.listen(PORT, () => console.log('ok'))
     } catch (error) {
         console.error(error)
