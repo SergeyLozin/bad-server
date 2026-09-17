@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery, Error as MongooseError, Types } from 'mongoose'
+import sanitizeHtml from 'sanitize-html'
 import BadRequestError from '../errors/bad-request-error'
 import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
@@ -320,13 +321,21 @@ export const createOrder = async (
             return next(new BadRequestError('Неверная сумма заказа'))
         }
 
+        // FIX: санитизация HTML — защита от XSS в комментарии
+        const safeComment = comment
+            ? sanitizeHtml(comment, {
+                  allowedTags: [],
+                  allowedAttributes: {},
+              })
+            : comment
+
         const newOrder = new Order({
             totalAmount: total,
             products: items,
             payment,
             phone,
             email,
-            comment,
+            comment: safeComment,
             customer: userId,
             deliveryAddress: address,
         })
@@ -349,10 +358,20 @@ export const updateOrder = async (
     next: NextFunction
 ) => {
     try {
-        const { status } = req.body
+        const { status, comment } = req.body
+
+        const updates: Record<string, unknown> = { status }
+        if (comment !== undefined) {
+            // FIX: санитизация HTML — защита от XSS
+            updates.comment = sanitizeHtml(comment, {
+                allowedTags: [],
+                allowedAttributes: {},
+            })
+        }
+
         const updatedOrder = await Order.findOneAndUpdate(
             { orderNumber: req.params.orderNumber },
-            { status },
+            updates,
             { new: true, runValidators: true }
         )
             .orFail(
