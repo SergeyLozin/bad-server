@@ -45,7 +45,16 @@ app.use(cookieParser())
 // FIX: CORS с белым списком вместо *
 app.use(
     cors({
-        origin: ORIGIN_ALLOW,
+        origin: (origin, callback) => {
+            if (!origin) {
+                // Без Origin — возвращаем первое значение whitelist
+                return callback(null, ORIGIN_ALLOW[0])
+            }
+            if (ORIGIN_ALLOW.includes(origin)) {
+                return callback(null, origin)
+            }
+            return callback(null, false)
+        },
         credentials: true,
     })
 )
