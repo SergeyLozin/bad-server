@@ -116,10 +116,14 @@ export const getCustomers = async (
             sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
         }
 
+        // FIX: нормализация page/limit — защита от больших значений
+        const pageNum = Math.max(1, Number(page) || 1)
+        const limitNum = Math.min(10, Math.max(1, Number(limit) || 10))
+
         const options = {
             sort,
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (pageNum - 1) * limitNum,
+            limit: limitNum,
         }
 
         const users = await User.find(filters, null, options).populate([
@@ -139,15 +143,15 @@ export const getCustomers = async (
         ])
 
         const totalUsers = await User.countDocuments(filters)
-        const totalPages = Math.ceil(totalUsers / Number(limit))
+        const totalPages = Math.ceil(totalUsers / limitNum)
 
         res.status(200).json({
             customers: users,
             pagination: {
                 totalUsers,
                 totalPages,
-                currentPage: Number(page),
-                pageSize: Number(limit),
+                currentPage: pageNum,
+                pageSize: limitNum,
             },
         })
     } catch (error) {
@@ -166,6 +170,9 @@ export const getCustomerById = async (
             'orders',
             'lastOrder',
         ])
+        if (!user) {
+            throw new NotFoundError('Пользователь не найден')
+        }
         res.status(200).json(user)
     } catch (error) {
         next(error)
@@ -181,12 +188,12 @@ export const updateCustomer = async (
     try {
         // FIX: whitelist полей — защита от Mass Assignment
         const allowedFields = ['name', 'email', 'phone'] as const
-const updates: Record<string, unknown> = {}
-allowedFields.forEach((field) => {
-    if (field in req.body) {
-        updates[field] = req.body[field]
-    }
-})
+        const updates: Record<string, unknown> = {}
+        allowedFields.forEach((field) => {
+            if (field in req.body) {
+                updates[field] = req.body[field]
+            }
+        })
         if (Object.keys(updates).length === 0) {
             throw new BadRequestError('Нет допустимых полей для обновления')
         }
